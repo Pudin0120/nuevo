@@ -1,0 +1,34 @@
+name: Verify source snapshot
+
+on:
+  push:
+    branches:
+      - lab/safe-emulation-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-source-archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Decode independent base64 chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/nuevo-source.tar.gz"
+          : > "$archive"
+          shopt -s nullglob
+          parts=(artifacts/nuevo-source.tar.gz.b64.part[0-9][0-9])
+          test "${#parts[@]}" -eq 8
+          for part in "${parts[@]}"; do
+            base64 --decode "$part" >> "$archive"
+          done
+          gzip -t "$archive"
+          tar -tzf "$archive" > "$RUNNER_TEMP/archive-files.txt"
+          echo "Archive entries: $(wc -l < "$RUNNER_TEMP/archive-files.txt")"
+          sha256sum "$archive"
+          grep -E 'internal/lab/(advanced_scenarios|detect_advanced|validation|otel)\.go|docs/(lumma-safe-emulation|defensive-baseline|forensics-workflow)\.md' "$RUNNER_TEMP/archive-files.txt"
